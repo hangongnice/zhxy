@@ -1,5 +1,6 @@
 package com.gcc.zhxy.controller;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.gcc.zhxy.pojo.Admin;
 import com.gcc.zhxy.pojo.LoginForm;
 import com.gcc.zhxy.pojo.Student;
@@ -7,10 +8,8 @@ import com.gcc.zhxy.pojo.Teacher;
 import com.gcc.zhxy.service.AdminService;
 import com.gcc.zhxy.service.StudentService;
 import com.gcc.zhxy.service.TeacherService;
-import com.gcc.zhxy.util.CreateVerifiCodeImage;
-import com.gcc.zhxy.util.JwtHelper;
-import com.gcc.zhxy.util.Result;
-import com.gcc.zhxy.util.ResultCodeEnum;
+import com.gcc.zhxy.util.*;
+import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,7 +27,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
-
+@Api(tags = "系统控制器")
 @RestController
 @RequestMapping("/sms/system")
 public class SystemController {
@@ -38,6 +37,70 @@ public class SystemController {
     private StudentService studentService;
     @Autowired
     private TeacherService teacherService;
+
+    //sms/system/updatePwd/admin/123456
+    @ApiOperation("更新用户密码的处理器")
+    @PostMapping("/updatePwd/{oldPwd}/{newPwd}")
+    public Result updatePwd(
+        @ApiParam("'token口令")@RequestHeader("token") String token,
+        @ApiParam("旧密码")@PathVariable("oldPwd") String oldPwd,
+        @ApiParam("新密码")@PathVariable("newPwd") String newPwd
+    ){
+    boolean expiration = JwtHelper.isExpiration(token);
+    if(expiration){
+        //token过期
+        return Result.fail().message("token失效，请重新登录");
+    }
+    Long userId = JwtHelper.getUserId(token);
+    Integer userType = JwtHelper.getUserType(token);
+    oldPwd = MD5.encrypt(oldPwd);
+    newPwd = MD5.encrypt(newPwd);
+
+    switch (userType) {
+        case 1:
+            QueryWrapper<Admin> queryWrapper1 = new QueryWrapper<>();
+            queryWrapper1.eq("id", userId.intValue());
+            queryWrapper1.eq("password", oldPwd);
+            Admin admin = adminService.getOne(queryWrapper1);
+            if (admin != null) {
+                //修改
+                admin.setPassword(newPwd);
+                adminService.saveOrUpdate(admin);
+            }else {
+                return Result.fail().message("原密码有误，请重新输入");
+            }
+            break;
+        case 2:
+            QueryWrapper<Student> queryWrapper2 = new QueryWrapper<>();
+            queryWrapper2.eq("id", userId.intValue());
+            queryWrapper2.eq("password", oldPwd);
+            Student student = studentService.getOne(queryWrapper2);
+            if (student != null) {
+                //修改
+                student.setPassword(newPwd);
+                studentService.saveOrUpdate(student);
+            }else {
+                return Result.fail().message("原密码有误，请重新输入");
+            }
+            break;
+        case 3:
+            QueryWrapper<Teacher> queryWrapper3 = new QueryWrapper<>();
+            queryWrapper3.eq("id", userId.intValue());
+            queryWrapper3.eq("password", oldPwd);
+            Teacher teacher = teacherService.getOne(queryWrapper3);
+            if (teacher != null) {
+                //修改
+                teacher.setPassword(newPwd);
+                teacherService.saveOrUpdate(teacher);
+            }else {
+                return Result.fail().message("原密码有误，请重新输入");
+            }
+    }
+
+return Result.ok();
+
+
+    }
 
 
     // sms/system/headerImgUpload
@@ -72,6 +135,7 @@ public class SystemController {
     /**
      * 登录首页展示
      */
+    @ApiOperation("跳转首页")
     @GetMapping("/getInfo")
     public Result getInfoByToken(@RequestHeader ("token") String token) {
         boolean expiration = JwtHelper.isExpiration(token);
@@ -108,8 +172,9 @@ public class SystemController {
     /**
      * 检验用户登录的实现
      */
+    @ApiOperation("校验用户登录")
     @PostMapping("/login")
-    public Result login(@RequestBody LoginForm loginForm, HttpServletRequest request){
+    public Result login(@ApiParam("form表单")@RequestBody LoginForm loginForm, HttpServletRequest request){
         //验证码是否有效
         HttpSession session = request.getSession();
         String sessionVerifiCode = (String)session.getAttribute("verifiCode");
@@ -184,7 +249,7 @@ public class SystemController {
     /**
          * 验证码功能的实现
          */
-
+@ApiOperation("获取验证码")
 @GetMapping("/getVerifiCodeImage")
 public void getVerifiCodeImage(HttpServletRequest request, HttpServletResponse response) {
 
